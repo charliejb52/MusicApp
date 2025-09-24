@@ -1,20 +1,43 @@
-# Welcome to your Expo app 👋
+# MusicApp 🎵
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native app for discovering musical venues in your area, built with Expo and Supabase.
 
-## Get started
+## Features
 
-1. Install dependencies
+- Interactive map showing music venues
+- Add new venues (with future self-signup capability)
+- Location-based venue discovery
+- Dark/light theme support
 
-   ```bash
-   npm install
-   ```
+## Setup
 
-2. Start the app
+### 1. Install dependencies
 
-   ```bash
-   npx expo start
-   ```
+```bash
+npm install
+```
+
+### 2. Set up Supabase
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Copy your project URL and anon key from the dashboard
+3. Copy `env.example` to `.env` and fill in your Supabase credentials:
+
+```bash
+cp env.example .env
+```
+
+Edit `.env` with your values:
+```
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+```
+
+### 3. Start the app
+
+```bash
+npx expo start
+```
 
 In the output, you'll find options to open the app in a
 
