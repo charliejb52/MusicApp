@@ -17,6 +17,12 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_type ON user_profiles(user_type);
 -- Enable Row Level Security
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Allow public read access to user profiles" ON user_profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can delete their own profile" ON user_profiles;
+
 -- Users can read all profiles
 CREATE POLICY "Allow public read access to user profiles" ON user_profiles
   FOR SELECT USING (true);
@@ -40,8 +46,15 @@ ALTER TABLE venues ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES user_profil
 CREATE INDEX IF NOT EXISTS idx_venues_owner ON venues(owner_id);
 
 -- Update venue policies to allow owners to manage their venues
+DROP POLICY IF EXISTS "Allow public read access to venues" ON venues;
 DROP POLICY IF EXISTS "Allow authenticated users to insert venues" ON venues;
 DROP POLICY IF EXISTS "Allow authenticated users to update venues" ON venues;
+DROP POLICY IF EXISTS "Allow venue owners to update their venues" ON venues;
+DROP POLICY IF EXISTS "Allow venue owners to delete their venues" ON venues;
+
+-- Allow public read access to venues
+CREATE POLICY "Allow public read access to venues" ON venues
+  FOR SELECT USING (true);
 
 CREATE POLICY "Allow authenticated users to insert venues" ON venues
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
@@ -57,7 +70,12 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.user_profiles (id, email, user_type, display_name)
-  VALUES (NEW.id, NEW.email, 'artist', COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)));
+  VALUES (
+    NEW.id, 
+    NEW.email, 
+    COALESCE(NEW.raw_user_meta_data->>'user_type', 'artist'),
+    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1))
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

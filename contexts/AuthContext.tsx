@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state change:", event, session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log("Fetching profile for user:", userId);
       const { data, error } = await supabase
         .from("user_profiles")
         .select("*")
@@ -80,8 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error("Error fetching profile:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
         setProfile(null);
       } else {
+        console.log("Profile fetched successfully:", data);
         setProfile(data);
       }
     } catch (error) {
@@ -112,18 +116,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) return { error };
 
-      // Update the profile with the correct user_type
-      if (data.user) {
-        const { error: updateError } = await supabase
-          .from("user_profiles")
-          .update({ user_type: userType, display_name: displayName })
-          .eq("id", data.user.id);
-
-        if (updateError) {
-          console.error("Error updating profile:", updateError);
-        }
-      }
-
+      // The database trigger will now create the profile with the correct user_type
+      // No need for manual update since the trigger reads from raw_user_meta_data
       return { error: null };
     } catch (error) {
       return { error };
