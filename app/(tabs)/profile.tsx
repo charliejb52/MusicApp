@@ -24,11 +24,24 @@ type UserMedia = {
   created_at: string;
 };
 
+type UpcomingGig = {
+  id: string;
+  title: string;
+  description: string;
+  genre: string;
+  event_date: string;
+  location: string;
+  pay_range?: string;
+  venue_name: string;
+  venue_id: string;
+};
+
 export default function ProfileTabScreen() {
   const { user, profile, updateProfile, signOut } = useAuth();
   const [bio, setBio] = useState(profile?.bio || "");
   const [location, setLocation] = useState(profile?.location || "");
   const [media, setMedia] = useState<UserMedia[]>([]);
+  const [upcomingGigs, setUpcomingGigs] = useState<UpcomingGig[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
 
@@ -38,6 +51,9 @@ export default function ProfileTabScreen() {
       setLocation(profile.location || "");
     }
     fetchMedia();
+    if (profile?.user_type === "artist") {
+      fetchUpcomingGigs();
+    }
   }, [profile]);
 
   const fetchMedia = async () => {
@@ -57,6 +73,77 @@ export default function ProfileTabScreen() {
       }
     } catch (error) {
       console.error("Error fetching media:", error);
+    }
+  };
+
+  const fetchUpcomingGigs = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("job_applications")
+        .select(
+          `
+          *,
+          job:jobs(
+            id,
+            title,
+            description,
+            genre,
+            event_date,
+            location,
+            pay_range,
+            venue_id
+          )
+        `
+        )
+        .eq("artist_id", user.id)
+        .eq("status", "accepted");
+
+      if (error) {
+        console.error("Error fetching upcoming gigs:", error);
+        return;
+      }
+
+      // Get venue names separately
+      const venueIds = [
+        ...new Set(
+          data?.map((app: any) => app.job?.venue_id).filter(Boolean) || []
+        ),
+      ];
+      const { data: venues } = await supabase
+        .from("user_profiles")
+        .select("id, display_name")
+        .in("id", venueIds);
+
+      const venueMap =
+        venues?.reduce((acc: any, venue: any) => {
+          acc[venue.id] = venue.display_name;
+          return acc;
+        }, {}) || {};
+
+      const gigs =
+        data
+          ?.map((app: any) => ({
+            id: app.job.id,
+            title: app.job.title,
+            description: app.job.description,
+            genre: app.job.genre,
+            event_date: app.job.event_date,
+            location: app.job.location,
+            pay_range: app.job.pay_range,
+            venue_name: venueMap[app.job.venue_id] || "Unknown Venue",
+            venue_id: app.job.venue_id,
+          }))
+          .sort(
+            (a, b) =>
+              new Date(a.event_date).getTime() -
+              new Date(b.event_date).getTime()
+          ) || [];
+
+      setUpcomingGigs(gigs);
+    } catch (error) {
+      console.error("Error fetching upcoming gigs:", error);
     }
   };
 
@@ -316,6 +403,47 @@ export default function ProfileTabScreen() {
           </View>
         )}
       </View>
+
+      {/* Upcoming Gigs Section - Only for Artists */}
+      {profile?.user_type === "artist" && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Upcoming Gigs</Text>
+          {upcomingGigs.length === 0 ? (
+            <View style={styles.emptyGigsContainer}>
+              <Text style={styles.emptyGigsText}>
+                No upcoming gigs yet. Apply for gigs to see them here!
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.gigsList}>
+              {upcomingGigs.map((gig) => (
+                <View key={gig.id} style={styles.gigCard}>
+                  <View style={styles.gigHeader}>
+                    <Text style={styles.gigTitle}>{gig.title}</Text>
+                    <Text style={styles.gigDate}>
+                      {new Date(gig.event_date).toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                  <Text style={styles.venueName}>{gig.venue_name}</Text>
+                  <Text style={styles.gigLocation}>📍 {gig.location}</Text>
+                  <Text style={styles.gigGenre}>🎵 {gig.genre}</Text>
+                  {gig.pay_range && (
+                    <Text style={styles.gigPay}>💰 {gig.pay_range}</Text>
+                  )}
+                  <Text style={styles.gigDescription} numberOfLines={2}>
+                    {gig.description}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -509,5 +637,80 @@ const styles = StyleSheet.create({
   mediaType: {
     color: "white",
     fontSize: 12,
+  },
+  // Upcoming Gigs styles
+  emptyGigsContainer: {
+    alignItems: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  emptyGigsText: {
+    fontSize: 16,
+    color: "#6b7280",
+    textAlign: "center",
+  },
+  gigsList: {
+    gap: 12,
+  },
+  gigCard: {
+    backgroundColor: "white",
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  gigHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  gigTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#111827",
+    flex: 1,
+    marginRight: 8,
+  },
+  gigDate: {
+    fontSize: 14,
+    color: "#6b7280",
+    fontWeight: "500",
+  },
+  gigLocation: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  gigGenre: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
+  gigPay: {
+    fontSize: 14,
+    color: "#059669",
+    fontWeight: "500",
+    marginBottom: 8,
+  },
+  gigDescription: {
+    fontSize: 14,
+    color: "#374151",
+    lineHeight: 20,
+  },
+  section: {
+    backgroundColor: "white",
+    marginTop: 16,
+    paddingVertical: 16,
+  },
+  venueName: {
+    fontSize: 16,
+    color: "#374151",
+    fontWeight: "500",
+    marginBottom: 4,
   },
 });

@@ -1,16 +1,16 @@
-import React, { useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  Alert,
-} from "react-native";
-import { router } from "expo-router";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { router } from "expo-router";
+import React, { useState } from "react";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 export default function PostJobScreen() {
   const { user, profile } = useAuth();
@@ -30,26 +30,30 @@ export default function PostJobScreen() {
       return;
     }
 
-    if (!title.trim() || !description.trim() || !genre.trim() || !eventDate.trim() || !location.trim()) {
+    if (
+      !title.trim() ||
+      !description.trim() ||
+      !genre.trim() ||
+      !eventDate.trim() ||
+      !location.trim()
+    ) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("jobs")
-        .insert({
-          venue_id: user.id,
-          title: title.trim(),
-          description: description.trim(),
-          genre: genre.trim(),
-          event_date: eventDate,
-          pay_range: payRange.trim() || null,
-          requirements: requirements.trim() || null,
-          contact_info: contactInfo.trim() || null,
-          location: location.trim(),
-        });
+      const { error } = await supabase.from("jobs").insert({
+        venue_id: user.id,
+        title: title.trim(),
+        description: description.trim(),
+        genre: genre.trim(),
+        event_date: eventDate,
+        pay_range: payRange.trim() || null,
+        requirements: requirements.trim() || null,
+        contact_info: contactInfo.trim() || null,
+        location: location.trim(),
+      });
 
       if (error) {
         Alert.alert("Error", "Failed to post job");
@@ -79,16 +83,18 @@ export default function PostJobScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
+        <Text style={styles.title}>Post a Job</Text>
+      </View>
+
+      <View style={styles.backButtonContainer}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
-        <Text style={styles.title}>Post a Job</Text>
-        <View style={styles.placeholder} />
       </View>
 
       <View style={styles.form}>
         <Text style={styles.sectionTitle}>Job Details</Text>
-        
+
         <Text style={styles.label}>Job Title *</Text>
         <TextInput
           style={styles.input}
@@ -179,28 +185,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9fafb",
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
     backgroundColor: "white",
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  backButton: {
-    padding: 8,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: "#111827",
-  },
   title: {
     fontSize: 18,
     fontWeight: "bold",
     color: "#111827",
   },
-  placeholder: {
-    width: 40,
+  backButtonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  backButton: {
+    alignSelf: "flex-start",
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: "#111827",
   },
   form: {
     padding: 20,

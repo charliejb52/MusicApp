@@ -26,6 +26,9 @@ export default function RootLayout() {
           <Stack.Screen name="auth" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ headerShown: false }} />
           <Stack.Screen name="post-job" options={{ headerShown: false }} />
+          <Stack.Screen name="user-profile" options={{ headerShown: false }} />
+          <Stack.Screen name="messages" options={{ headerShown: false }} />
+          <Stack.Screen name="chat" options={{ headerShown: false }} />
           <Stack.Screen
             name="modal"
             options={{ presentation: "modal", title: "Modal" }}
