@@ -40,6 +40,7 @@ export default function ProfileTabScreen() {
   const { user, profile, updateProfile, signOut } = useAuth();
   const [bio, setBio] = useState(profile?.bio || "");
   const [location, setLocation] = useState(profile?.location || "");
+  const [role, setRole] = useState(profile?.role || "");
   const [media, setMedia] = useState<UserMedia[]>([]);
   const [upcomingGigs, setUpcomingGigs] = useState<UpcomingGig[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,6 +50,7 @@ export default function ProfileTabScreen() {
     if (profile) {
       setBio(profile.bio || "");
       setLocation(profile.location || "");
+      setRole(profile.role || "");
     }
     fetchMedia();
     if (profile?.user_type === "artist") {
@@ -155,6 +157,7 @@ export default function ProfileTabScreen() {
       const { error } = await updateProfile({
         bio: bio.trim(),
         location: location.trim(),
+        role: role.trim(),
       });
 
       if (error) {
@@ -355,6 +358,18 @@ export default function ProfileTabScreen() {
             onChangeText={setLocation}
             placeholder="City, State"
           />
+
+          {profile?.user_type === "artist" && (
+            <>
+              <Text style={styles.sectionTitle}>Role</Text>
+              <TextInput
+                style={styles.input}
+                value={role}
+                onChangeText={setRole}
+                placeholder="e.g., Guitarist, Singer, Drummer"
+              />
+            </>
+          )}
 
           <Pressable
             style={[styles.saveButton, loading && styles.saveButtonDisabled]}

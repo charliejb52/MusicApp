@@ -43,10 +43,53 @@ type JobApplication = {
   };
 };
 
+type Group = {
+  id: string;
+  name: string;
+  description?: string;
+  genre?: string;
+  members: {
+    id: string;
+    user_id: string;
+    role: string;
+    user: {
+      display_name: string;
+      profile_picture_url?: string;
+    };
+  }[];
+};
+
+type GroupJobApplication = {
+  id: string;
+  job_id: string;
+  group_id: string;
+  message?: string;
+  status: string;
+  created_at: string;
+  group?: {
+    name: string;
+    description?: string;
+    genre?: string;
+    members: {
+      id: string;
+      user_id: string;
+      role: string;
+      user: {
+        display_name: string;
+        profile_picture_url?: string;
+      };
+    }[];
+  };
+};
+
 export default function JobsScreen() {
   const { user, profile } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupApplications, setGroupApplications] = useState<
+    GroupJobApplication[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -57,6 +100,8 @@ export default function JobsScreen() {
       fetchJobs();
       if (profile?.user_type === "artist") {
         fetchApplications();
+        fetchGroups();
+        fetchGroupApplications();
       }
     }
   }, [profile]);
@@ -152,6 +197,93 @@ export default function JobsScreen() {
     }
   };
 
+  const fetchGroups = async () => {
+    if (!user) return;
+
+    try {
+      // First get groups created by the user
+      const { data: createdGroups, error: createdError } = await supabase
+        .from("groups")
+        .select("*")
+        .eq("created_by", user.id);
+
+      if (createdError) {
+        console.error("Error fetching created groups:", createdError);
+        return;
+      }
+
+      // Then get groups where user is a member
+      const { data: memberGroups, error: memberError } = await supabase
+        .from("group_members")
+        .select("group:groups(*)")
+        .eq("user_id", user.id);
+
+      if (memberError) {
+        console.error("Error fetching member groups:", memberError);
+        return;
+      }
+
+      // Combine and deduplicate groups
+      const allGroups = [
+        ...(createdGroups || []),
+        ...(memberGroups?.map((m) => m.group).filter(Boolean) || []),
+      ];
+
+      // Remove duplicates based on group id
+      const uniqueGroups = allGroups.filter(
+        (group, index, self) =>
+          index === self.findIndex((g) => g.id === group.id)
+      );
+
+      setGroups(uniqueGroups);
+    } catch (error) {
+      console.error("Error fetching groups:", error);
+    }
+  };
+
+  const fetchGroupApplications = async () => {
+    if (!user) return;
+
+    console.log(
+      "Fetching group applications for groups:",
+      groups.map((g) => g.id)
+    );
+
+    try {
+      const { data, error } = await supabase
+        .from("group_job_applications")
+        .select(
+          `
+          *,
+          group:groups(
+            name,
+            description,
+            genre,
+            members:group_members(
+              id,
+              user_id,
+              role
+            )
+          )
+        `
+        )
+        .in(
+          "group_id",
+          groups.map((g) => g.id)
+        );
+
+      if (error) {
+        console.error("Error fetching group applications:", error);
+        return;
+      }
+
+      console.log("Fetched group applications:", data);
+      setGroupApplications(data || []);
+    } catch (error) {
+      console.error("Error fetching group applications:", error);
+    }
+  };
+
   const handleApply = async (jobId: string) => {
     if (!user || profile?.user_type !== "artist") {
       Alert.alert("Error", "Only artists can apply for jobs");
@@ -187,6 +319,51 @@ export default function JobsScreen() {
     }
   };
 
+  const handleGroupApply = async (jobId: string, groupId: string) => {
+    if (!user || profile?.user_type !== "artist") {
+      Alert.alert("Error", "Only artists can apply for jobs");
+      return;
+    }
+
+    // Check if group already applied
+    const existingApplication = groupApplications.find(
+      (app) => app.job_id === jobId && app.group_id === groupId
+    );
+    if (existingApplication) {
+      Alert.alert(
+        "Already Applied",
+        "This group has already applied for this job"
+      );
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("group_job_applications").insert({
+        job_id: jobId,
+        group_id: groupId,
+        message: "Our group is interested in this opportunity!",
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          Alert.alert(
+            "Already Applied",
+            "This group has already applied for this job"
+          );
+        } else {
+          Alert.alert("Error", `Failed to apply for job: ${error.message}`);
+        }
+        console.error("Error applying for job:", error);
+      } else {
+        Alert.alert("Success", "Group application submitted successfully!");
+        fetchGroupApplications(); // Refresh group applications
+      }
+    } catch (error) {
+      Alert.alert("Error", "Something went wrong");
+      console.error("Error applying for job:", error);
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
     if (profile?.user_type === "venue") {
@@ -195,6 +372,8 @@ export default function JobsScreen() {
       await fetchJobs();
       if (profile?.user_type === "artist") {
         await fetchApplications();
+        await fetchGroups();
+        await fetchGroupApplications();
       }
     }
     setRefreshing(false);
@@ -235,6 +414,18 @@ export default function JobsScreen() {
 
   const hasApplied = (jobId: string) => {
     return applications.some((app) => app.job_id === jobId);
+  };
+
+  const hasGroupApplied = (jobId: string, groupId: string) => {
+    const hasApplied = groupApplications.some(
+      (app) => app.job_id === jobId && app.group_id === groupId
+    );
+    console.log(
+      `Checking if group ${groupId} applied for job ${jobId}:`,
+      hasApplied
+    );
+    console.log("Current group applications:", groupApplications);
+    return hasApplied;
   };
 
   if (loading) {
@@ -373,20 +564,54 @@ export default function JobsScreen() {
                   </View>
                 )}
 
-              {/* Artist-specific: Apply button */}
+              {/* Artist-specific: Application options */}
               {profile?.user_type === "artist" && (
-                <Pressable
-                  style={[
-                    styles.applyButton,
-                    hasApplied(job.id) && styles.appliedButton,
-                  ]}
-                  onPress={() => handleApply(job.id)}
-                  disabled={hasApplied(job.id)}
-                >
-                  <Text style={styles.applyButtonText}>
-                    {hasApplied(job.id) ? "Applied ✓" : "Apply"}
+                <View style={styles.applicationSection}>
+                  <Text style={styles.applicationSectionTitle}>
+                    Apply for this gig:
                   </Text>
-                </Pressable>
+
+                  {/* Solo application */}
+                  <Pressable
+                    style={[
+                      styles.applyButton,
+                      hasApplied(job.id) && styles.appliedButton,
+                    ]}
+                    onPress={() => handleApply(job.id)}
+                    disabled={hasApplied(job.id)}
+                  >
+                    <Text style={styles.applyButtonText}>
+                      {hasApplied(job.id) ? "Applied Solo ✓" : "Apply Solo"}
+                    </Text>
+                  </Pressable>
+
+                  {/* Group applications */}
+                  {groups.length > 0 && (
+                    <View style={styles.groupApplicationsContainer}>
+                      <Text style={styles.groupApplicationsTitle}>
+                        Or apply with a group:
+                      </Text>
+                      {groups.map((group) => (
+                        <Pressable
+                          key={group.id}
+                          style={[
+                            styles.groupApplyButton,
+                            hasGroupApplied(job.id, group.id) &&
+                              styles.appliedButton,
+                          ]}
+                          onPress={() => handleGroupApply(job.id, group.id)}
+                          disabled={hasGroupApplied(job.id, group.id)}
+                        >
+                          <Text style={styles.groupApplyButtonText}>
+                            {hasGroupApplied(job.id, group.id)
+                              ? `Applied with ${group.name} ✓`
+                              : `Apply with ${group.name}`}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
               )}
             </View>
           ))}
@@ -526,12 +751,25 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     lineHeight: 18,
   },
+  applicationSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  applicationSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 8,
+  },
   applyButton: {
     backgroundColor: "#111827",
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: "center",
+    marginBottom: 8,
   },
   appliedButton: {
     backgroundColor: "#10b981",
@@ -540,6 +778,30 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "600",
+  },
+  groupApplicationsContainer: {
+    marginTop: 8,
+  },
+  groupApplicationsTitle: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#6b7280",
+    marginBottom: 8,
+  },
+  groupApplyButton: {
+    backgroundColor: "#f3f4f6",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: "center",
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+  },
+  groupApplyButtonText: {
+    color: "#374151",
+    fontSize: 14,
+    fontWeight: "500",
   },
   // Application management styles
   applicationsContainer: {

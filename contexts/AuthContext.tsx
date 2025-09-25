@@ -12,6 +12,7 @@ type UserProfile = {
   phone?: string;
   profile_picture_url?: string;
   location?: string;
+  role?: string; // For artists: guitarist, singer, drummer, etc.
   social_links?: Record<string, string>;
 };
 
